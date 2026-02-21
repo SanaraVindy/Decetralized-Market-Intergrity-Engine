@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    body {
+        @apply bg-[#020617] text-slate-200 antialiased;
+        font-family: 'Inter', system-ui, sans-serif;
+    }
+}
+
+/* Professional Auditor-Grade Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: #0a0f1c;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #1e293b;
+    border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #3b82f6;
+}
+
+/* Print specific styles for the PDF Export */
+@media print {
+    .no-print {
+        display: none;
+    }
+
+    .pdf-only {
+        display: block !important;
+    }
+}
