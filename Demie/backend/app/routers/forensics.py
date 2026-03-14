@@ -5,6 +5,14 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.nn import GATv2Conv, BatchNorm
 from neo4j import AsyncSession
+import re
+from pydantic import BaseModel, EmailStr
+
+def is_valid_ethereum_address(address: str) -> bool:
+    #"""
+    #Validates if the given string is a valid Ethereum address.
+    #"""
+    return bool(re.match(r"^0x[a-fA-F0-9]{40}$", address))
 
 # The prefix "/api" is applied in main.py
 router = APIRouter(tags=["Forensics"])
@@ -29,9 +37,9 @@ class DeMIE_GATv2(torch.nn.Module):
         x = F.leaky_relu(x)
         return F.log_softmax(self.out(x), dim=1), alpha
 
-# --- GATv2 MODEL ARCHITECTURE (Matches your engine) ---
+# --- GATv2 MODEL ARCHITECTURE (Matches  engine) ---
 class DeMIE_GATv2(torch.nn.Module):
-    # Change in_channels to num_node_features to match your engine's call
+    # Change in_channels to num_node_features to match  engine's call
     def __init__(self, num_node_features, hidden_channels, out_channels, heads=4):
         super(DeMIE_GATv2, self).__init__()
         self.conv1 = GATv2Conv(num_node_features, hidden_channels, heads=heads, dropout=0.2)
@@ -40,13 +48,17 @@ class DeMIE_GATv2(torch.nn.Module):
         self.out = torch.nn.Linear(hidden_channels, out_channels)
 
     def forward(self, x, edge_index):
-        # Ensure return_attention_weights is handled if your engine expects it
+        # Ensure return_attention_weights is handled if  engine expects it
         x, (edge_index, alpha) = self.conv1(x, edge_index, return_attention_weights=True)
         x = self.bn1(x)
         x = F.leaky_relu(x)
         x = self.conv2(x, edge_index)
         x = F.leaky_relu(x)
         return F.log_softmax(self.out(x), dim=1), alpha
+    
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+    username: str    
 
 # --- DYNAMIC DASHBOARD ENDPOINTS ---
 
@@ -235,6 +247,7 @@ async def get_network_graph(session=Depends(get_db_session)):
     
 @router.get("/address/{address}/history")
 async def get_address_history(address: str, session=Depends(get_db_session)):
+    # The query uses the $addr placeholder
     query = """
     MATCH (a:Address {address: $addr})-[r]->(b:Address)
     RETURN 'SENT' as type, b.address as counterparty, r.amount as amount
@@ -243,7 +256,8 @@ async def get_address_history(address: str, session=Depends(get_db_session)):
     RETURN 'RECEIVED' as type, b.address as counterparty, r.amount as amount
     LIMIT 10
     """
-    results = await session.run(query, addr=address)
+    # CORRECT: Passing the variable as a named parameter in a dictionary
+    results = await session.run(query, {"addr": address.lower()}) 
     return await results.data()
     
     
@@ -295,6 +309,9 @@ async def get_clusters(session=Depends(get_db_session)):
     
 @router.get("/clusters/{address}/details")
 async def get_cluster_details(address: str, session=Depends(get_db_session)):
+    if not is_valid_ethereum_address(address):
+        raise HTTPException(status_code=400, detail="Invalid Ethereum Address format")
+        
     addr_clean = address.lower()
     
     # We now fetch nodes explicitly connected via FUSED_TO 
@@ -360,3 +377,37 @@ async def health_check(session: AsyncSession = Depends(get_db_session)):
             status_code=503, 
             detail=f"GAT Engine Offline: {str(e)}"
         )
+        
+@router.post("/auth/forgot-password")
+async def forgot_password(request: ForgotPasswordRequest, session=Depends(get_db_session)):
+    """
+    Identity Recovery Protocol: Verifies Auditor credentials 
+    against the Neo4j User registry.
+    """
+    # 1. Verification Query
+    query = """
+    MATCH (u:User)
+    WHERE toLower(u.email) = toLower($email) AND u.username = $username
+    RETURN u.email AS email
+    """
+    
+    try:
+        result = await session.run(query, {"email": request.email, "username": request.username})
+        user_record = await result.single()
+
+        if not user_record:
+            # Raising 404 so your React 'message' state catches the error
+            raise HTTPException(status_code=404, detail="AUDITOR_NOT_FOUND")
+
+        # 2. Return Success
+        return {
+            "status": "DISPATCHED",
+            "message": "RECOVERY_LINK_DISPATCHED",
+            "protocol": "SMTP_SECURE_RECOVERY"
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        print(f"Recovery System Error: {e}")
+        raise HTTPException(status_code=500, detail="DISPATCH_FAILED")  

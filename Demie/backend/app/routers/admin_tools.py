@@ -1,9 +1,9 @@
 import hashlib
 from neo4j import GraphDatabase
 
-# Your connection details from Neo4j Desktop
+# connection details from Neo4j Desktop
 URI = "bolt://localhost:7687" 
-AUTH = ("neo4j", "your_password")
+AUTH = ("neo4j", "password@123")
 
 def delete_user(username):
     with GraphDatabase.driver(URI, auth=AUTH) as driver:
@@ -19,8 +19,7 @@ def list_auditors():
             for record in result:
                 print(f"ID: {record[2]} | USER: {record[0]} | ROLE: {record[1]}")
 
-# Usage Examples:
-# delete_user("temp_user")
+
 list_auditors()
 
 def toggle_auditor_status(username, active=True):
