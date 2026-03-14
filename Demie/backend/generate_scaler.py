@@ -3,7 +3,7 @@ import joblib
 import os
 from sklearn.preprocessing import StandardScaler
 
-# 1. Load your training dataset
+# 1. Load training dataset
 DATA_PATH = 'transaction_dataset.csv'
 SCALER_PATH = 'data/scaler.pkl'
 
@@ -19,7 +19,7 @@ else:
         ' ERC20 most sent token type', ' ERC20_most_rec_token_type'
     ]
     
-    # Drop columns and ensure we are only using numeric data
+    # Drop columns and ensure  only using numeric data
     feature_df = df.drop(columns=[c for c in exclude if c in df.columns])
     
     # 3. Fit the Scaler
